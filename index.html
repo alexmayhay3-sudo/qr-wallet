@@ -114,6 +114,13 @@ function render() {
         updated.splice(index, 1);
         saveItems(updated);
         render();
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./service-worker.js")
+      .catch(error => console.error("Service worker error:", error));
+  });
+}
       }
     };
 
