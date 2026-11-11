@@ -1,0 +1,41 @@
+name: Build QR Wallet APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Build APK
+        run: gradle assembleDebug
+      - name: Publish APK to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          if ! gh release view latest >/dev/null 2>&1; then
+            gh release create latest --title "QR Wallet - Latest APK" --notes "Latest automatically built QR Wallet Android APK."
+          fi
+          gh release upload latest "$APK#QR-Wallet.apk" --clobber
+      - uses: actions/upload-artifact@v4
+        with:
+          name: QR-Wallet-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
