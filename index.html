@@ -1,0 +1,178 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111827">
+  <title>QR Wallet</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 24px;
+      background: #111827; color: #f9fafb;
+      font-family: Arial, sans-serif;
+    }
+    main { max-width: 480px; margin: auto; }
+    h1 { margin-bottom: 6px; }
+    .muted { color: #9ca3af; }
+    .card {
+      background: #1f2937; border-radius: 16px;
+      padding: 18px; margin-top: 18px;
+    }
+    input, button {
+      width: 100%; padding: 13px; margin-top: 10px;
+      border-radius: 10px; border: 0; font-size: 16px;
+    }
+    input { background: #374151; color: white; }
+    button {
+      background: #2563eb; color: white;
+      font-weight: bold; cursor: pointer;
+    }
+    button.secondary { background: #374151; }
+    .qr {
+      width: 100%; max-height: 280px;
+      object-fit: contain; background: white;
+      border-radius: 12px; margin-top: 12px;
+    }
+    .item {
+      border-top: 1px solid #374151;
+      padding: 14px 0;
+    }
+    .item img { width: 100%; max-height: 220px; object-fit: contain; background: white; border-radius: 8px; }
+    .item button { width: auto; margin-right: 6px; }
+    .danger { background: #991b1b; }
+    label { display: block; margin-top: 14px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>QR Wallet</h1>
+  <p class="muted">Your personal QR payment collection.</p>
+
+  <section class="card">
+    <h2>Add payment QR</h2>
+    <label>Payment name</label>
+    <input id="name" placeholder="e.g. GCash, Maya, Bank">
+    <label>QR image</label>
+    <input id="photo" type="file" accept="image/*">
+    <button onclick="addQR()">Save QR</button>
+    <p class="muted">QR images are saved on this device.</p>
+  </section>
+
+  <section class="card">
+    <h2>My payment QRs</h2>
+    <div id="wallet"></div>
+  </section>
+</main>
+
+<script>
+const STORAGE_KEY = "qr-wallet-items";
+
+function getItems() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+  catch { return []; }
+}
+
+function saveItems(items) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+}
+
+function render() {
+  const wallet = document.getElementById("wallet");
+  const items = getItems();
+  wallet.innerHTML = "";
+
+  if (!items.length) {
+    wallet.textContent = "No QR codes saved yet.";
+    return;
+  }
+
+  items.forEach((item, index) => {
+    const div = document.createElement("div");
+    div.className = "item";
+
+    const heading = document.createElement("h3");
+    heading.textContent = item.name;
+
+    const img = document.createElement("img");
+    img.className = "qr";
+    img.src = item.image;
+    img.alt = item.name + " QR code";
+
+    const share = document.createElement("button");
+    share.textContent = "Share QR";
+    share.onclick = () => shareQR(item);
+
+    const remove = document.createElement("button");
+    remove.textContent = "Delete";
+    remove.className = "danger";
+    remove.onclick = () => {
+      if (confirm("Delete this QR code?")) {
+        const updated = getItems();
+        updated.splice(index, 1);
+        saveItems(updated);
+        render();
+      }
+    };
+
+    div.append(heading, img, share, remove);
+    wallet.appendChild(div);
+  });
+}
+
+function addQR() {
+  const name = document.getElementById("name").value.trim();
+  const file = document.getElementById("photo").files[0];
+
+  if (!name || !file) {
+    alert("Enter a payment name and select a QR image.");
+    return;
+  }
+
+  if (!file.type.startsWith("image/")) {
+    alert("Please select an image file.");
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    const items = getItems();
+    items.push({ name, image: reader.result });
+    try {
+      saveItems(items);
+      document.getElementById("name").value = "";
+      document.getElementById("photo").value = "";
+      render();
+      alert("QR saved!");
+    } catch {
+      alert("Storage is full. Try a smaller QR image.");
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+async function shareQR(item) {
+  try {
+    const response = await fetch(item.image);
+    const blob = await response.blob();
+    const file = new File([blob], "payment-qr.png", { type: blob.type || "image/png" });
+
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ title: item.name, files: [file] });
+    } else {
+      const link = document.createElement("a");
+      link.href = item.image;
+      link.download = "payment-qr.png";
+      link.click();
+    }
+  } catch {
+    alert("Sharing was cancelled or is not supported by this browser.");
+  }
+}
+
+render();
+</script>
+</body>
+</html>
