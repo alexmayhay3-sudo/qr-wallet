@@ -43,3 +43,13 @@ jobs:
           make_latest: true
           files: app/build/outputs/apk/debug/app-debug.apk
           fail_on_unmatched_files: true
+
+          
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: QR-Wallet-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
