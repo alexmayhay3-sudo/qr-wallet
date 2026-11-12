@@ -11,31 +11,60 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
-      - uses: android-actions/setup-android@v3
-      - name: Install Android SDK
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "8.9"
-      - name: Build APK
-        run: gradle assembleDebug
-      - name: Publish APK to GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: |
+          sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
+          yes | sdkmanager --licenses
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build debug APK
+        run: |
+          chmod +x ./gradlew
+          ./gradlew clean :app:assembleDebug --no-daemon
+
+      - name: Verify APK
         run: |
           APK="app/build/outputs/apk/debug/app-debug.apk"
-          if ! gh release view latest >/dev/null 2>&1; then
-            gh release create latest --title "QR Wallet - Latest APK" --notes "Latest automatically built QR Wallet Android APK."
+          if [ ! -f "$APK" ]; then
+            echo "ERROR: APK was not created at $APK"
+            echo "APK files found:"
+            find app/build/outputs -type f -name "*.apk" -print || true
+            exit 1
           fi
-          gh release upload latest "$APK#QR-Wallet.apk" --clobber
-      - uses: actions/upload-artifact@v4
+          echo "APK details:"
+          ls -lh "$APK"
+          file "$APK"
+          unzip -t "$APK"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
         with:
           name: QR-Wallet-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish APK release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: QR Wallet APK
+          make_latest: true
+          files: app/build/outputs/apk/debug/app-debug.apk
+          fail_on_unmatched_files: true
