@@ -1,6 +1,7 @@
 package com.alexmayhay.qrwallet;
 
 import android.app.Activity;
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
@@ -12,6 +13,7 @@ import android.webkit.WebViewClient;
 
 public class MainActivity extends Activity {
     private static final int FILE_CHOOSER_REQUEST_CODE = 1001;
+
     private WebView webView;
     private ValueCallback<Uri[]> filePathCallback;
 
@@ -26,8 +28,7 @@ public class MainActivity extends Activity {
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
-        settings.setAllowFileAccess(true);
-        settings.setAllowContentAccess(true);
+        settings.setAllowFileAccess(false);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
 
         webView.setWebViewClient(new WebViewClient());
@@ -35,21 +36,22 @@ public class MainActivity extends Activity {
             @Override
             public boolean onShowFileChooser(
                     WebView view,
-                    ValueCallback<Uri[]> filePathCallback,
+                    ValueCallback<Uri[]> callback,
                     FileChooserParams fileChooserParams) {
 
-                if (MainActivity.this.filePathCallback != null) {
-                    MainActivity.this.filePathCallback.onReceiveValue(null);
+                // Cancel any previous unfinished file request.
+                if (filePathCallback != null) {
+                    filePathCallback.onReceiveValue(null);
                 }
-                MainActivity.this.filePathCallback = filePathCallback;
+                filePathCallback = callback;
 
                 try {
                     Intent intent = fileChooserParams.createIntent();
                     startActivityForResult(intent, FILE_CHOOSER_REQUEST_CODE);
                     return true;
-                } catch (Exception e) {
-                    MainActivity.this.filePathCallback = null;
+                } catch (ActivityNotFoundException e) {
                     filePathCallback.onReceiveValue(null);
+                    filePathCallback = null;
                     return false;
                 }
             }
@@ -69,11 +71,11 @@ public class MainActivity extends Activity {
         super.onActivityResult(requestCode, resultCode, data);
 
         if (requestCode == FILE_CHOOSER_REQUEST_CODE) {
-            if (filePathCallback != null) {
-                Uri[] results = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
-                filePathCallback.onReceiveValue(results);
-                filePathCallback = null;
-            }
+            if (filePathCallback == null) return;
+
+            Uri[] results = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
+            filePathCallback.onReceiveValue(results);
+            filePathCallback = null;
         }
     }
 
@@ -95,10 +97,7 @@ public class MainActivity extends Activity {
             filePathCallback.onReceiveValue(null);
             filePathCallback = null;
         }
-        if (webView != null) {
-            webView.destroy();
-            webView = null;
-        }
+        if (webView != null) webView.destroy();
         super.onDestroy();
     }
 }
